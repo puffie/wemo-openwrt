@@ -167,6 +167,30 @@ detect_mac80211() {
 			dev_id="set wireless.radio${devidx}.macaddr=$(cat /sys/class/ieee80211/${dev}/macaddress)"
 		fi
 
+		phy_name="set wireless.radio${devidx}.phy='$dev'"
+
+		if [ "$dev" = "nrc80211" ]; then
+			mode_band="a"
+			channel="36"
+			uci -q batch <<-EOF
+			set wireless.radio${devidx}=wifi-device
+			set wireless.radio${devidx}.type=mac80211
+			${dev_id}
+			${phy_name}
+			set wireless.radio${devidx}.country='US'
+			set wireless.radio${devidx}.channel=${channel}
+			set wireless.radio${devidx}.hwmode=11${mode_band}
+			set wireless.radio${devidx}.htmode=$htmode
+			set wireless.radio${devidx}.disabled=1
+
+			set wireless.default_radio${devidx}=wifi-iface
+			set wireless.default_radio${devidx}.device=radio${devidx}
+			set wireless.default_radio${devidx}.network=lan
+			set wireless.default_radio${devidx}.mode=ap
+			set wireless.default_radio${devidx}.ssid=nrc-halow-${devidx}
+			set wireless.default_radio${devidx}.encryption=none
+EOF
+		else
 		uci -q batch <<-EOF
 			set wireless.radio${devidx}=wifi-device
 			set wireless.radio${devidx}.type=mac80211
@@ -183,6 +207,7 @@ detect_mac80211() {
 			set wireless.default_radio${devidx}.ssid=OpenWrt
 			set wireless.default_radio${devidx}.encryption=none
 EOF
+		fi
 		uci -q commit wireless
 
 		devidx=$(($devidx + 1))

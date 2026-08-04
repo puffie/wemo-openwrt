@@ -650,7 +650,9 @@ mac80211_prepare_vif() {
 
 	json_get_vars ifname mode ssid wds powersave macaddr enable wpa_psk_file vlan_file
 
-	[ -n "$ifname" ] || ifname="wlan${phy#phy}${if_idx:+-$if_idx}"
+	local temp_phy="$phy"
+	[ "$temp_phy" = "nrc80211" ] && temp_phy="phy0"
+	[ -n "$ifname" ] || ifname="wlan${temp_phy#phy}${if_idx:+-$if_idx}"
 	if_idx=$((${if_idx:-0} + 1))
 
 	set_default wds 0
@@ -1021,6 +1023,35 @@ drv_mac80211_cleanup() {
 	hostapd_common_cleanup
 }
 
+drv_nrc80211_reload() {
+	local krband="$1"
+
+	rmmod nrc
+	case "$krband" in
+		K1) modprobe nrc kr_band=1 ;;
+		K2) modprobe nrc kr_band=2 ;;
+		*)  modprobe nrc ;;
+	esac
+	sleep 2
+}
+
+drv_nrc80211_handle_kr() {
+	local krband="$1"
+	local module_config="/etc/modules.d/nrc"
+	local legacy_config="/etc/modules.d/modules.conf"
+
+	# Remove entries written by older NRC integration scripts.
+	if [ -f "$legacy_config" ]; then
+		sed -i '/^nrc\([[:space:]]\|$\)/d; /^$/d' "$legacy_config"
+	fi
+
+	case "$krband" in
+		K1) printf '%s\n' 'nrc kr_band=1' > "$module_config" ;;
+		K2) printf '%s\n' 'nrc kr_band=2' > "$module_config" ;;
+		*)  printf '%s\n' 'nrc' > "$module_config" ;;
+	esac
+}
+
 drv_mac80211_setup() {
 	json_select config
 	json_get_vars \
@@ -1032,6 +1063,20 @@ drv_mac80211_setup() {
 	json_get_values basic_rate_list basic_rate
 	json_get_values scan_list scan_list
 	json_select ..
+
+	[ "$phy" = "nrc80211" ] && {
+		local nrc_krband
+
+		device=$1
+		if [ "$country" = "KR" ]; then
+			nrc_krband=$(uci -q -P /var/state get wireless.${device}.krband)
+			[ -n "$nrc_krband" ] || nrc_krband="K1"
+		fi
+
+		drv_nrc80211_handle_kr "$nrc_krband"
+		drv_nrc80211_reload "$nrc_krband"
+		sleep 2
+	}
 
 	find_phy || {
 		echo "Could not find PHY for device '$1'"
