@@ -1,0 +1,12 @@
+Index: hostapd-2022-01-16-cff80b4f/src/ap/wpa_auth.c
+===================================================================
+--- hostapd-2022-01-16-cff80b4f.orig/src/ap/wpa_auth.c
++++ hostapd-2022-01-16-cff80b4f/src/ap/wpa_auth.c
+@@ -69,7 +69,7 @@ static int ieee80211w_kde_len(struct wpa
+ static u8 * ieee80211w_kde_add(struct wpa_state_machine *sm, u8 *pos);
+
+ static const u32 eapol_key_timeout_first = 100; /* ms */
+-static const u32 eapol_key_timeout_subseq = 1000; /* ms */
++static const u32 eapol_key_timeout_subseq = 2000; /* ms */
+ static const u32 eapol_key_timeout_first_group = 500; /* ms */
+ static const u32 eapol_key_timeout_no_retrans = 4000; /* ms */
