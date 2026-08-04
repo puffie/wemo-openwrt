@@ -1,0 +1,7 @@
+
+config NRC
+	tristate "Newracom 802.11ah Wi-Fi HaLow driver"
+	depends on MAC80211
+	depends on SPI
+	---help---
+		The host driver for the Newracom NRC7394 802.11ah device.
