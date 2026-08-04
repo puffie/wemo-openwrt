@@ -1028,9 +1028,9 @@ drv_nrc80211_reload() {
 
 	rmmod nrc
 	case "$krband" in
-		K1) modprobe nrc kr_band=1 ;;
-		K2) modprobe nrc kr_band=2 ;;
-		*)  modprobe nrc ;;
+		K1) insmod nrc kr_band=1 ;;
+		K2) insmod nrc kr_band=2 ;;
+		*)  insmod nrc ;;
 	esac
 	sleep 2
 }
