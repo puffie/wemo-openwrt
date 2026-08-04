@@ -27,6 +27,7 @@ define Build/boot-common
 	mmd -i $@.boot ::/overlays
 	mcopy -i $@.boot $(DTS_DIR)/overlays/*.dtbo ::/overlays/
 	mcopy -i $@.boot $(DTS_DIR)/overlays/README ::/overlays/
+	mcopy -i $@.boot ./overlays/* ::/overlays/
 endef
 
 define Build/boot-2708
