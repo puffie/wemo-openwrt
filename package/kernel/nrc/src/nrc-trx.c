@@ -904,6 +904,7 @@ int nrc_mac_rx(struct nrc *nw, struct sk_buff *skb)
 		/* Modified assoc issue after STA OFF/ON (connection without deauth) */
 		if (ieee80211_is_auth(mh->frame_control) && rx.sta && rx.vif && rx.vif->type == NL80211_IFTYPE_AP) {
 			struct nrc_sta *i_sta = to_i_sta(rx.sta);
+			struct ieee80211_mgmt *mgmt = (struct ieee80211_mgmt *)skb->data;
 			/*
 			 * PMF (802.11w) guard: if the STA is already fully AUTHORIZED
 			 * and negotiated Management Frame Protection, an unprotected
@@ -917,9 +918,18 @@ int nrc_mac_rx(struct nrc *nw, struct sk_buff *skb)
 			 */
 			if (i_sta && i_sta->state == IEEE80211_STA_AUTHORIZED && rx.sta->mfp) {
 				nrc_mac_dbg("%s: %pM is PMF-authorized, forward unprotected auth to host instead of tearing down session",
-					    __func__, ((struct ieee80211_mgmt *)skb->data)->sa);
+					    __func__, mgmt->sa);
+			} else if (skb->len >= offsetof(struct ieee80211_mgmt, u.auth.variable) &&
+				   (le16_to_cpu(mgmt->u.auth.auth_alg) == WLAN_AUTH_OPEN ||
+				    le16_to_cpu(mgmt->u.auth.auth_alg) == WLAN_AUTH_SAE)) {
+				/* Let hostapd handle Open System/WPA2 and SAE restarts.
+				 * Consuming this frame as a local deauth forces a retry;
+				 * keep the existing STA/PMF state for hostapd to validate.
+				 */
+				nrc_mac_dbg("%s: %pM forward auth to host (algorithm=%u)",
+					    __func__, mgmt->sa,
+					    le16_to_cpu(mgmt->u.auth.auth_alg));
 			} else if (i_sta && i_sta->state > IEEE80211_STA_NOTEXIST) {
-				struct ieee80211_mgmt *mgmt = (struct ieee80211_mgmt *)skb->data;
 				struct sk_buff *skb_deauth;
 				/* Pretend to receive a deauth from @sta */
 				skb_deauth = ieee80211_deauth_get(nw->hw, mgmt->bssid, mgmt->sa, mgmt->bssid, WLAN_REASON_DEAUTH_LEAVING, NULL, false);
