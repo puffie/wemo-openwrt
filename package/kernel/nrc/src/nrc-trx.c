@@ -904,7 +904,21 @@ int nrc_mac_rx(struct nrc *nw, struct sk_buff *skb)
 		/* Modified assoc issue after STA OFF/ON (connection without deauth) */
 		if (ieee80211_is_auth(mh->frame_control) && rx.sta && rx.vif && rx.vif->type == NL80211_IFTYPE_AP) {
 			struct nrc_sta *i_sta = to_i_sta(rx.sta);
-			if(i_sta && i_sta->state > IEEE80211_STA_NOTEXIST){
+			/*
+			 * PMF (802.11w) guard: if the STA is already fully AUTHORIZED
+			 * and negotiated Management Frame Protection, an unprotected
+			 * Authentication frame is not sufficient proof that the real
+			 * STA wants to restart the connection (it may be spoofed/
+			 * injected). Do NOT synthesize a deauth and tear the session
+			 * down here; instead let the frame flow up to mac80211/
+			 * hostapd normally below, so hostapd's own SA Query defense
+			 * (triggered on the subsequent (Re)Association Request while
+			 * WLAN_STA_MFP is set) can protect the still-valid session.
+			 */
+			if (i_sta && i_sta->state == IEEE80211_STA_AUTHORIZED && rx.sta->mfp) {
+				nrc_mac_dbg("%s: %pM is PMF-authorized, forward unprotected auth to host instead of tearing down session",
+					    __func__, ((struct ieee80211_mgmt *)skb->data)->sa);
+			} else if (i_sta && i_sta->state > IEEE80211_STA_NOTEXIST) {
 				struct ieee80211_mgmt *mgmt = (struct ieee80211_mgmt *)skb->data;
 				struct sk_buff *skb_deauth;
 				/* Pretend to receive a deauth from @sta */
@@ -959,6 +973,9 @@ int nrc_mac_rx(struct nrc *nw, struct sk_buff *skb)
 				nrc_send_beacon_loss(nw);
 			}
 		}
+	}
+	else {
+		dev_kfree_skb(skb);
 	}
 
 	return 0;

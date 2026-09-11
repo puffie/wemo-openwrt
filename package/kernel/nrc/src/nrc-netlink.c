@@ -84,19 +84,20 @@ static void nrc_nl_post_doit(struct genl_ops *ops,
 
 static bool nrc_set_stbc_rx(struct nrc *nw, u8 stream)
 {
-	struct ieee80211_supported_band *sband = NULL;
-
-	sband = &nw->bands[NL80211_BAND_2GHZ];
+	struct ieee80211_supported_band *sband_2g = &nw->bands[NL80211_BAND_2GHZ];
+	struct ieee80211_supported_band *sband_5g = &nw->bands[NL80211_BAND_5GHZ];
 
 	if (stream > 4)
 		return false;
 
 	if (stream == 0) {
-		sband->ht_cap.cap &= ~(IEEE80211_HT_CAP_RX_STBC);
+		sband_2g->ht_cap.cap &= ~(IEEE80211_HT_CAP_RX_STBC);
+		sband_5g->ht_cap.cap &= ~(IEEE80211_HT_CAP_RX_STBC);
 		return true;
 	}
 
-	sband->ht_cap.cap |= (stream << IEEE80211_HT_CAP_RX_STBC_SHIFT);
+	sband_2g->ht_cap.cap |= (stream << IEEE80211_HT_CAP_RX_STBC_SHIFT);
+	sband_5g->ht_cap.cap |= (stream << IEEE80211_HT_CAP_RX_STBC_SHIFT);
 
 	return true;
 }
@@ -137,11 +138,14 @@ static const struct nla_policy nl_umac_policy[NL_WFA_CAPI_ATTR_LAST] = {
 	[NL_SHELL_RUN_CMD_RAW]		= {.type = NLA_NUL_STRING},
 	[NL_AUTO_BA_ON]		= {.type = NLA_U8},
 	[NL_CLI_APP_DRIVER_CMD]		= {.type = NLA_NUL_STRING},
+	[NL_DCS_CHANNEL]		= {.type = NLA_U16},
+	[NL_DCS_VIF]		= {.type = NLA_U16},
 };
 
 static const struct genl_multicast_group nl_umac_mcast_grps[] = {
 	[NL_MCGRP_WFA_CAPI_RESPONSE] = { .name = "response", },
 	[NL_MCGRP_NRC_LOG]			= { .name = "nrc-log", },
+	[NL_MCGRP_NRC_CHMGR]		= { .name = "nrc-chmgr", },
 };
 
 static struct genl_family nrc_nl_fam = {
@@ -242,6 +246,45 @@ int nrc_netlink_trigger_recovery(struct nrc *nw)
 #endif
 
 	return 0;
+}
+
+/* DCS switch request from the FW: multicast the target proxy channel to
+ * chmgrd (nrc-chmgr group). chmgrd runs the ECSA via hostapd_cli. */
+int nrc_netlink_dcs_switch_req(struct nrc *nw, u16 channel, u16 vif)
+{
+	struct sk_buff *mcast_skb;
+	void *data;
+	int ret;
+
+#ifdef CONFIG_SUPPORT_GENLMSG_DEFAULT
+	mcast_skb = genlmsg_new(GENLMSG_DEFAULT_SIZE, GFP_KERNEL);
+#else
+	mcast_skb = genlmsg_new(NLMSG_DEFAULT_SIZE - GENL_HDRLEN, GFP_KERNEL);
+#endif
+
+	if (!mcast_skb)
+		return -1;
+
+	data = genlmsg_put(mcast_skb, 0, 0, &nrc_nl_fam, 0, NL_CMD_DCS_SWITCH);
+	if (!data ||
+	    nla_put_u16(mcast_skb, NL_DCS_CHANNEL, channel) ||
+	    nla_put_u16(mcast_skb, NL_DCS_VIF, vif)) {
+		nlmsg_free(mcast_skb);
+		return -1;
+	}
+	genlmsg_end(mcast_skb, data);
+
+#ifdef CONFIG_SUPPORT_GENLMSG_DEFAULT
+	ret = genlmsg_multicast(&nrc_nl_fam, mcast_skb, 0, NL_MCGRP_NRC_CHMGR, GFP_KERNEL);
+#else
+	ret = genlmsg_multicast(mcast_skb, 0, NL_MCGRP_NRC_CHMGR, GFP_KERNEL);
+#endif
+	/* -ESRCH = no chmgrd subscribed; the request is lost (FW re-arms
+	 * after its WAIT_SWITCH timeout). Surface it instead of hiding it. */
+	if (ret)
+		nrc_dbg(NRC_DBG_HIF, "dcs switch req not delivered (%d)", ret);
+
+	return ret;
 }
 
 static int capi_sta_reply(int id, struct genl_info *info, const char *response)
@@ -1746,7 +1789,7 @@ static int cli_app_driver_cmd(struct sk_buff *skb, struct genl_info *info)
 						sprintf(cmd_resp, "fail");
 					} else {
 						i_vif = to_i_vif(vif);
-						if (nrc_mac_is_s1g(nrc_nw->hw->priv) && max_idle) {
+						if (nrc_mac_is_s1g(nrc_nw->hw->priv)) {
 							/* bss_max_idle: in unit of 1000 TUs (1024ms = 1.024 seconds) */
 							if (kstrtoint(argv[3], 10, &max_idle) < 0) {
 								i_vif->max_idle_period = 0;

@@ -386,6 +386,8 @@ void nrc_stats_deinit(void)
 		kfree(cur);
 	}
 	spin_unlock(&state_lock);
+
+	nrc_stats_channel_noise_reset();
 }
 
 int nrc_stats_update(uint8_t *macaddr, int8_t snr, int8_t rssi)
@@ -572,7 +574,8 @@ int nrc_stats_channel_noise_update(uint32_t freq, int8_t noise)
 	int i;
 
 	for(i = 0; i < state_channel_num; i++){
-		if(channel_noise_info[i].chan->center_freq == freq){
+		if(channel_noise_info[i].chan &&
+				channel_noise_info[i].chan->center_freq == freq){
 			channel_noise_info[i].noise = noise;
 			return 0;
 		}
@@ -586,7 +589,12 @@ int nrc_stats_channel_noise_update(uint32_t freq, int8_t noise)
 	memset(chan, 0, sizeof(*chan));
 
 	channel_noise_info[state_channel_num].noise = noise;
+
+	if (channel_noise_info[state_channel_num].chan) {
+		kfree(channel_noise_info[state_channel_num].chan);
+	}
 	channel_noise_info[state_channel_num].chan = chan;
+
 	channel_noise_info[state_channel_num].chan->center_freq = freq;
 	state_channel_num ++;
 
@@ -603,6 +611,7 @@ int nrc_stats_channel_noise_reset(void)
 		nrc_stats_dbg("[remove channel noise] freq : %d\n", channel_noise_info[i].chan->center_freq);
 		channel_noise_info[i].noise = 0;
 		kfree(channel_noise_info[i].chan);
+		channel_noise_info[i].chan = NULL;
 	}
 	state_channel_num = 0;
 

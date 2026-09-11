@@ -57,13 +57,8 @@ static const struct s1g_channel_table s1g_ch_table_k2_mic[]= {
 	{"KR",	9285,	7,	BW_1M,	1,	14,		-5,	1},
 	{"KR",	9295,	9,	BW_1M,	1,	14,		5,	0},
 	{"KR",	9305,	11,	BW_1M,	1,	14,		-5,	1},
-#if defined (S1G_INCLUDE_4M_OP_2M_TX)
-	{"KR",	9280,	4,	BW_4M,	1,	15,		0,	1},
-	{"KR",	9300,	8,	BW_4M,	1,	15,		0,	1},
-#else
 	{"KR",	9270,	4,	BW_4M,	1,	15,		0,	0},
 	{"KR",	9290,	8,	BW_4M,	1,	15,		0,	0},
-#endif
 	{}
 };
 

@@ -94,10 +94,6 @@
 #endif /* CONFIG_S1G_CHANNEL */
 #endif /* KERNEL_VERSION(5, 10, 0) <= NRC_TARGET_KERNEL_VERSION */
 
-#ifdef CONFIG_S1G_CHANNEL
-/* #define S1G_INCLUDE_4M_OP_2M_TX */
-#endif
-
 #if KERNEL_VERSION(4, 10, 0) <= NRC_TARGET_KERNEL_VERSION
 #define GENL_ID_GENERATE 0
 #endif
@@ -247,5 +243,4 @@ this feature is disabled
    the function to wake up the target will be delayed
    from the start of sleep up to TARGET_MAX_TIME_TO_FALL_ASLEEP. */
 #define CONFIG_DELAY_WAKE_TARGET
-
 #endif
